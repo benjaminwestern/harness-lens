@@ -1,0 +1,143 @@
+{{define "session-content"}}
+{{if .Sessions}}
+{{range .Sessions}}
+<section class="section">
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:16px; border-bottom:1px solid var(--border); display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:start;">
+      <div>
+        <div class="section-title" style="margin-bottom:8px;">Session Detail</div>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+          <span class="badge badge-muted">{{.Harness}}</span>
+          {{if .ResumeCommand}}<button class="filter-pill" type="button" data-resume="{{.ResumeCommand}}" onclick="copyResumeCommand(this)">{{.ResumeLabel}}</button>{{end}}
+        </div>
+        <h2 style="font-size:20px; margin:0 0 6px; letter-spacing:-0.01em;">{{.Project}}</h2>
+        {{if .Cwd}}<div class="mono text-secondary session-path">{{.Cwd}}</div>{{end}}
+        {{if .ResumeCommand}}<div class="mono text-muted session-path text-xs" style="margin-top:4px;">{{.ResumeCommand}}</div>{{end}}
+      </div>
+      <div class="right mono text-secondary text-xs">{{.StartTimeStr}}<br>{{.EndTimeStr}}</div>
+    </div>
+    <div style="padding:16px;">
+      <div class="grid grid-5">
+        <div class="card"><div class="kpi-label">Spend</div><div class="kpi-value text-good">{{.CostDisplay}}</div><div class="kpi-sub">session total</div></div>
+        <div class="card"><div class="kpi-label">Total Tokens</div><div class="kpi-value">{{.TotalTokensDisplay}}</div><div class="kpi-sub">{{.TokenBreakdownDisplay}}</div></div>
+        <div class="card"><div class="kpi-label">Duration</div><div class="kpi-value">{{.DurationDisplay}}</div><div class="kpi-sub">wall-clock span</div></div>
+        <div class="card"><div class="kpi-label">Turns</div><div class="kpi-value">{{.TotalTurns}}</div><div class="kpi-sub">{{.UserTurns}} user / {{.AgentTurns}} assistant</div></div>
+        <div class="card"><div class="kpi-label">Tool Error Rate</div><div class="kpi-value text-bad">{{.ToolErrorPct}}</div><div class="kpi-sub">{{.ToolErrorCount}} of {{.ToolCount}} calls</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-title">Profanity in this Session</div>
+  {{if $.Diagnostics.ProfanityCollectionEnabled}}
+  {{if $.SessionProfanity}}
+  <div class="grid grid-3" style="margin-bottom:16px;">
+    <div class="card"><div class="kpi-label">Hits</div><div class="kpi-value text-bad">{{$.SessionProfanityTotal}}</div><div class="kpi-sub">matched user-message terms</div></div>
+    <div class="card"><div class="kpi-label">Feel</div><div class="kpi-value text-bad">{{$.SessionProfanityMood}}</div><div class="kpi-sub">score {{$.SessionProfanityFeel}}</div></div>
+    <div class="card"><div class="kpi-label">Groups</div><div class="kpi-value">{{len $.SessionProfanity}}</div><div class="kpi-sub">dictionary groups hit</div></div>
+  </div>
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Group</th><th>Severity</th><th>Words</th><th class="right">Hits</th><th class="right">Strong</th><th class="right">Moderate</th><th class="right">Mild</th></tr></thead>
+        <tbody>
+        {{range $.SessionProfanity}}
+        <tr>
+          <td><span class="badge badge-err">{{.GroupName}}</span></td>
+          <td>{{.Severity}}</td>
+          <td class="mono text-secondary session-path">{{.Words}}</td>
+          <td class="right mono text-bad">{{.Count}}</td>
+          <td class="right mono">{{.StrongCount}}</td>
+          <td class="right mono">{{.ModerateCount}}</td>
+          <td class="right mono">{{.MildCount}}</td>
+        </tr>
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {{else}}
+  <div class="card"><div class="text-secondary">No profanity was detected in user messages for this session.</div></div>
+  {{end}}
+  {{else}}
+  <div class="card"><div class="text-secondary">Profanity collection is paused. Enable it and refresh to compute session-level aggregates.</div></div>
+  {{end}}
+</section>
+
+<section class="section">
+  <div class="section-title">Model KPIs</div>
+  {{if .ModelStats}}
+  <div class="grid grid-4">
+    {{range .ModelStats}}
+    <div class="card">
+      <div class="kpi-label">{{.Provider}}</div>
+      <div style="margin-bottom:8px;"><span class="badge badge-model">{{.Model}}</span></div>
+      <div class="kpi-value text-good">{{.CostDisplay}}</div>
+      <div class="kpi-sub">{{.TokenBreakdownDisplay}}</div>
+      <div class="kpi-sub">{{.Turns}} turns · {{.Tools}} tools · {{.ErrorPct}} errors</div>
+      <div class="kpi-sub">{{.CostPerTurnDisplay}}/turn · {{.CostPerToolDisplay}}/tool</div>
+    </div>
+    {{end}}
+  </div>
+  {{else}}
+  <div class="card"><div class="text-secondary">No model usage was captured for this session.</div></div>
+  {{end}}
+</section>
+
+<section class="section">
+  <div class="section-title">Model and Tool Breakdown</div>
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Model</th><th>Provider</th><th class="right">Turns</th><th class="right">Spend</th><th class="right">Tokens</th><th class="right">Tools</th><th class="right">Errors</th><th class="right">Cost / Turn</th></tr></thead>
+        <tbody>
+        {{range .ModelStats}}
+        <tr>
+          <td><span class="badge badge-model">{{.Model}}</span></td>
+          <td>{{.Provider}}</td>
+          <td class="right mono">{{.Turns}}</td>
+          <td class="right mono text-good">{{.CostDisplay}}</td>
+          <td class="right mono text-secondary">{{.TokenBreakdownDisplay}}</td>
+          <td class="right mono">{{.Tools}}</td>
+          <td class="right mono text-bad">{{.Errors}} ({{.ErrorPct}})</td>
+          <td class="right mono">{{.CostPerTurnDisplay}}</td>
+        </tr>
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-title">Tool Calls in this Session</div>
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Model</th><th>Provider</th><th>Tool</th><th class="right">Execs</th><th class="right">Errors</th><th class="right">Err %</th></tr></thead>
+        <tbody>
+        {{range $.ModelTools}}
+        <tr>
+          <td><span class="badge badge-model">{{.Model}}</span></td>
+          <td><span class="badge">{{.Provider}}</span></td>
+          <td><span class="badge badge-tool">{{.Tool}}</span></td>
+          <td class="right mono">{{.Count}}</td>
+          <td class="right mono text-bad">{{.Errors}}</td>
+          <td class="right mono">{{.ErrorPct}}</td>
+        </tr>
+        {{else}}
+        <tr><td colspan="6" class="text-secondary">No tool calls were attributed to this session.</td></tr>
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{{end}}
+{{else}}
+<section class="section">
+  <div class="card"><div class="text-secondary">No session matched <span class="mono session-path">{{.Filename}}</span>.</div></div>
+</section>
+{{end}}
+{{end}}

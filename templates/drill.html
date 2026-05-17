@@ -1,0 +1,106 @@
+{{define "drill-content"}}
+<section class="section">
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:16px; border-bottom:1px solid var(--border); display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:start;">
+      <div>
+        <div class="section-title" style="margin-bottom:8px;">Timeline</div>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+          {{if .Harness}}<span class="badge badge-muted">{{.Harness}}</span>{{end}}
+          {{if .Provider}}<span class="badge">{{.Provider}}</span>{{end}}
+          {{if .Model}}<span class="badge badge-model">{{.Model}}</span>{{end}}
+          {{if .Project}}<span class="badge badge-muted">{{.Project}}</span>{{end}}
+          {{if .Tool}}<span class="badge badge-tool">{{.Tool}}</span>{{end}}
+          {{if not .Harness}}{{if not .Provider}}{{if not .Model}}{{if not .Project}}{{if not .Tool}}<span class="badge badge-muted">all activity</span>{{end}}{{end}}{{end}}{{end}}{{end}}
+        </div>
+        <h2 style="font-size:20px; margin:0 0 6px; letter-spacing:-0.01em;">{{if .Model}}{{.Model}}{{else if .Harness}}{{.Harness}}{{else if .Provider}}{{.Provider}}{{else if .Project}}{{.Project}}{{else}}Overall activity{{end}}</h2>
+        <div class="text-secondary text-xs">Spend, tokens, tool calls, tool errors, profanity, and feel over time. Metrics use stacked lanes with a shared date axis so timing patterns are readable.</div>
+      </div>
+      <div class="right mono text-secondary text-xs">{{.GeneratedAt}}</div>
+    </div>
+    <div style="padding:16px;">
+      <div class="mono text-secondary text-xs" style="display:flex; gap:16px; flex-wrap:wrap; align-items:center;">
+        <span><span class="text-good font-bold">{{.Summary.TotalSpendDisplay}}</span> spend · {{.Summary.Sessions}} sessions</span>
+        <span>{{.Summary.TotalTokensDisplay}} tokens</span>
+        <span>{{.Summary.ToolCallsDisplay}} tools <span class="text-bad">({{.Summary.ToolErrorsDisplay}} err)</span></span>
+        <span class="text-bad">{{.ProfanitySummary.TotalSwears}} profanity</span>
+        <span>{{if .Timeline}}{{(index .Timeline 0).FeelDisplay}}{{else}}calm{{end}} feel</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="chart-box">
+    <div class="chart-title">Timeline</div>
+    <div class="chart-hint">Each lane is scaled independently. Orange stems are profanity hits; dashed amber is feel score.</div>
+    <div class="timeline-legend" aria-hidden="true">
+      <span><i style="background:#58a6ff"></i>Spend</span>
+      <span><i style="background:#a371f7"></i>Tokens</span>
+      <span><i style="background:#3fb950"></i>Tool calls</span>
+      <span><i style="background:#f85149"></i>Tool errors</span>
+      <span><i style="background:#ffa657"></i>Profanity</span>
+      <span><i style="background:#d29922"></i>Feel</span>
+    </div>
+    <canvas id="chart-timeline" height="420" data-timeline='{{json .Timeline}}'></canvas>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-title">Breakdown</div>
+  <div class="grid grid-3">
+    <div class="card" style="padding:0; overflow:hidden;">
+      <div style="padding:12px 16px; border-bottom:1px solid var(--border); font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-secondary);">Models</div>
+      <div class="table-wrap" style="max-height:280px; overflow-y:auto;">
+        <table><thead><tr><th>Model</th><th>Provider</th><th class="right">Spend</th><th class="right">Tools</th></tr></thead><tbody>
+        {{range .Models}}
+        <tr class="clickable" onclick="openDrill({model:'{{.Model}}', provider:'{{.Provider}}'})"><td><span class="badge badge-model">{{.Model}}</span></td><td><span class="badge">{{.Provider}}</span></td><td class="right mono text-good">{{.SpendDisplay}}</td><td class="right mono">{{.Tools}}</td></tr>
+        {{else}}<tr><td colspan="4" class="text-secondary">No model rows.</td></tr>{{end}}
+        </tbody></table>
+      </div>
+    </div>
+    <div class="card" style="padding:0; overflow:hidden;">
+      <div style="padding:12px 16px; border-bottom:1px solid var(--border); font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-secondary);">Tools</div>
+      <div class="table-wrap" style="max-height:280px; overflow-y:auto;">
+        <table><thead><tr><th>Tool</th><th class="right">Execs</th><th class="right">Errors</th><th class="right">Err %</th></tr></thead><tbody>
+        {{range .Tools}}
+        <tr class="clickable" onclick="openDrill({tool:'{{.Tool}}'})"><td><span class="badge badge-tool">{{.Tool}}</span></td><td class="right mono">{{.Count}}</td><td class="right mono text-bad">{{.Errors}}</td><td class="right mono">{{.ErrorPct}}</td></tr>
+        {{else}}<tr><td colspan="4" class="text-secondary">No tool calls.</td></tr>{{end}}
+        </tbody></table>
+      </div>
+    </div>
+    <div class="card" style="padding:0; overflow:hidden;">
+      <div style="padding:12px 16px; border-bottom:1px solid var(--border); font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-secondary);">Profanity Groups</div>
+      <div class="table-wrap" style="max-height:280px; overflow-y:auto;">
+        <table><thead><tr><th>Group</th><th>Severity</th><th class="right">Swears</th></tr></thead><tbody>
+        {{range .ProfanityGroups}}
+        <tr><td><span class="badge badge-err">{{.GroupName}}</span></td><td>{{.Severity}}</td><td class="right mono text-bad">{{.Count}}</td></tr>
+        {{else}}<tr><td colspan="3" class="text-secondary">No swears detected.</td></tr>{{end}}
+        </tbody></table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-title">Matching Sessions</div>
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:8px 16px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-secondary);">
+      Showing {{len .Sessions}} of {{.TotalSessions}} sessions
+    </div>
+    <div class="table-wrap" style="max-height:380px; overflow-y:auto;">
+      <table>
+        <thead><tr><th>When</th><th>Harness</th><th>Project</th><th>Models</th><th class="right">Spend</th><th class="right">Tokens</th><th class="right">Turns</th></tr></thead>
+        <tbody>
+        {{range .Sessions}}
+        <tr class="clickable" data-filename="{{.Filename}}" data-harness="{{.Harness}}" onclick="openSession(this)">
+          <td class="mono text-secondary">{{.StartTimeStr}}</td><td><span class="badge badge-muted">{{.Harness}}</span></td><td><div class="font-bold">{{.Project}}</div></td>
+          <td>{{range .Models}}<span class="badge badge-model">{{.}}</span> {{end}}</td>
+          <td class="right mono text-good">{{.CostDisplay}}</td><td class="right mono text-secondary">{{.TokenBreakdownDisplay}}</td><td class="right mono">{{.AgentTurns}}</td>
+        </tr>
+        {{else}}<tr><td colspan="7" class="text-secondary">No matching sessions.</td></tr>{{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{{end}}

@@ -1,0 +1,13 @@
+version: "2"
+# Note: sqlc does not natively support DuckDB. We use the 'postgresql' engine
+# as the closest match. DuckDB's SQL dialect is PostgreSQL-compatible for our
+# queries (CTEs, window functions, FILTER clauses, type casts). The generated
+# Go code uses database/sql interfaces which work with go-duckdb.
+sql:
+  - engine: "postgresql"
+    queries: "db/queries"
+    schema: "db/schema.sql"
+    gen:
+      go:
+        package: "db"
+        out: "db"

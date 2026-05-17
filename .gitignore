@@ -1,0 +1,46 @@
+# Binaries for programs and plugins
+harness-lens
+harness-dashboard
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Coverage, profiles, and test artefacts
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Dependency directories
+# vendor/
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Local environment and runtime files
+.env
+server.log
+*.log
+logs/
+.tmp/
+tmp/
+/config
+/config.json
+
+# Local generated probes
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Editor/IDE
+.vscode/
+.idea/

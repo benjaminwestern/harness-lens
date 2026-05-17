@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harness Lens</title>
+<script>
+  (function () {
+    try {
+      const saved = localStorage.getItem('harness-theme');
+      const preferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      document.documentElement.dataset.theme = saved || preferred;
+    } catch (_) {
+      document.documentElement.dataset.theme = 'dark';
+    }
+  })();
+</script>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: oklch(15% 0.014 255);
+    --panel: oklch(20% 0.015 255);
+    --panel-strong: oklch(23% 0.017 255);
+    --panel-hover: oklch(26% 0.018 255);
+    --border: oklch(34% 0.018 255);
+    --border-strong: oklch(44% 0.035 255);
+    --text: oklch(87% 0.015 255);
+    --text-secondary: oklch(68% 0.018 255);
+    --accent: oklch(67% 0.15 255);
+    --accent-soft: oklch(67% 0.15 255 / 0.16);
+    --accent-contrast: oklch(15% 0.014 255);
+    --good: oklch(68% 0.15 150);
+    --good-soft: oklch(68% 0.15 150 / 0.15);
+    --bad: oklch(68% 0.18 28);
+    --bad-soft: oklch(68% 0.18 28 / 0.14);
+    --warn: oklch(76% 0.14 78);
+    --muted: oklch(56% 0.018 255);
+    --shadow: 0 10px 26px oklch(8% 0.01 255 / 0.34);
+    --focus: 0 0 0 3px oklch(67% 0.15 255 / 0.28);
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: oklch(97% 0.008 255);
+    --panel: oklch(99% 0.004 255);
+    --panel-strong: oklch(95% 0.01 255);
+    --panel-hover: oklch(94% 0.014 255);
+    --border: oklch(86% 0.014 255);
+    --border-strong: oklch(74% 0.032 255);
+    --text: oklch(24% 0.018 255);
+    --text-secondary: oklch(46% 0.02 255);
+    --accent: oklch(55% 0.17 255);
+    --accent-soft: oklch(55% 0.17 255 / 0.12);
+    --accent-contrast: oklch(98% 0.006 255);
+    --good: oklch(52% 0.15 150);
+    --good-soft: oklch(52% 0.15 150 / 0.12);
+    --bad: oklch(56% 0.18 28);
+    --bad-soft: oklch(56% 0.18 28 / 0.12);
+    --warn: oklch(59% 0.14 78);
+    --muted: oklch(58% 0.014 255);
+    --shadow: 0 10px 24px oklch(46% 0.02 255 / 0.12);
+    --focus: 0 0 0 3px oklch(55% 0.17 255 / 0.22);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+  button, input { font: inherit; }
+  button:focus-visible, .filter-pill:focus-visible, .filter-chip:focus-visible, th.sortable:focus-visible, tr.clickable:focus-visible {
+    outline: none;
+    box-shadow: var(--focus);
+  }
+
+  .container { max-width: 1480px; margin: 0 auto; padding: 24px; }
+  .app-header {
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) auto;
+    gap: 14px 20px;
+    align-items: start;
+    margin-bottom: 28px;
+  }
+  .app-title { font-size: 21px; font-weight: 740; margin: 0 0 4px; color: var(--text); letter-spacing: -0.015em; }
+  .app-subtitle { color: var(--text-secondary); font-size: 12px; max-width: 68ch; }
+  .header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+  .active-filters, .page-nav { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; min-height: 0; }
+  .page-nav { margin-top: 0; }
+  .active-filters:empty { display: none; }
+  .etl-status {
+    display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap;
+    padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel);
+    font-size: 11px; color: var(--text-secondary); max-width: 100%;
+  }
+  .etl-status[data-state="ok"] > div:first-child { display: none; }
+  .etl-status strong { color: var(--text); }
+  .etl-status[data-state="running"] { border-color: color-mix(in oklch, var(--accent) 42%, var(--border)); }
+  .etl-status[data-state="error"] { border-color: color-mix(in oklch, var(--bad) 55%, var(--border)); background: var(--bad-soft); }
+  .etl-meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .etl-error { color: var(--bad); font-weight: 700; }
+  .etl-control { display: inline-flex; align-items: center; gap: 6px; }
+  .etl-control input[type="number"] {
+    width: 72px; min-height: 30px; padding: 4px 8px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--panel-strong); color: var(--text);
+  }
+  .etl-status .filter-pill { padding: 4px 8px; min-height: 26px; }
+  .etl-status .etl-control input[type="number"] { width: 54px; min-height: 26px; }
+  .theme-toggle {
+    min-height: 32px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    transition: background 0.16s ease-out, border-color 0.16s ease-out, color 0.16s ease-out;
+  }
+  .theme-toggle:hover { background: var(--panel-hover); border-color: var(--border-strong); color: var(--text); }
+
+  .section { margin-bottom: 32px; }
+  .section-title {
+    font-size: 12px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-secondary);
+    margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .section-title svg { width: 16px; height: 16px; opacity: 0.7; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    transition: border-color 0.15s, background 0.15s;
+    min-width: 0;
+  }
+  .card-hover:hover {
+    border-color: var(--accent);
+    background: var(--panel-hover);
+    cursor: pointer;
+  }
+  .card-active {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  .hoverable {
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .hoverable:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+  }
+
+  .grid { display: grid; gap: 16px; min-width: 0; }
+  .grid > * { min-width: 0; }
+  .grid-5 { grid-template-columns: repeat(5, 1fr); }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 1100px) {
+    .grid-5 { grid-template-columns: repeat(3, 1fr); }
+    .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 900px) {
+    .app-header { grid-template-columns: 1fr; }
+    .header-actions { justify-content: flex-start; }
+    .header-actions .filter-bar { justify-content: flex-start; }
+  }
+  @media (max-width: 700px) {
+    .container { padding: 14px; }
+    .app-header { margin-bottom: 22px; gap: 12px; }
+    .app-title { font-size: 18px; }
+    .app-subtitle { font-size: 12px; }
+    .grid-5, .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; gap: 12px; }
+    .section { margin-bottom: 24px; }
+    .section-title { margin-bottom: 10px; }
+    .card, .chart-box { padding: 13px; }
+    .kpi-value { font-size: 22px; word-break: normal; overflow-wrap: anywhere; }
+    .filter-pill, .theme-toggle { min-height: 34px; padding: 6px 11px; }
+    .active-filters { gap: 6px; }
+    .filter-chip { max-width: 100%; }
+    .badge { font-size: 10px; padding: 1px 6px; }
+    td { padding: 8px 10px; }
+    th { padding: 8px 10px; font-size: 10px; }
+    table { min-width: 680px; font-size: 11px; }
+    .table-wrap { -webkit-overflow-scrolling: touch; }
+    #chart-harnesses, #chart-providers, #chart-models-cost { height: 190px; }
+    #chart-tools { height: 280px; }
+    #chart-timeline { height: 220px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+  }
+
+  .kpi-label {
+    font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+  .kpi-value {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 24px; font-weight: 700;
+    color: var(--text);
+    line-height: 1.2;
+    word-break: break-all;
+  }
+  .kpi-sub {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 10px; color: var(--muted);
+    margin-top: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .kpi-good { color: var(--good); }
+  .kpi-bad { color: var(--bad); }
+  .kpi-accent { color: var(--accent); }
+  .kpi-warn { color: var(--warn); }
+
+  .filter-bar {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 16px; flex-wrap: wrap;
+  }
+  .header-actions .filter-bar { margin-bottom: 0; justify-content: flex-end; }
+  .filter-pill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px; font-weight: 600;
+    cursor: pointer; user-select: none;
+    transition: all 0.15s;
+  }
+  .filter-pill:hover { border-color: var(--accent); color: var(--text); }
+  .filter-pill.active {
+    background: var(--accent); border-color: var(--accent);
+    color: var(--accent-contrast); box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .filter-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    min-height: 28px; max-width: min(100%, 520px);
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--panel-strong);
+    color: var(--text-secondary);
+    font-size: 12px; font-weight: 650;
+    cursor: pointer;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .filter-chip:hover { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
+  .filter-pill:focus-visible, .filter-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+
+  .chart-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    position: relative;
+    min-width: 0;
+  }
+  .chart-title {
+    font-size: 12px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+  }
+  .chart-hint {
+    font-size: 11px; color: var(--muted);
+    margin-bottom: 8px;
+  }
+  canvas { display: block; width: 100%; cursor: crosshair; }
+  #chart-harnesses, #chart-providers, #chart-models-cost, #chart-models-tokens, #chart-tools { height: 220px; }
+  #chart-tools { height: 320px; }
+  #chart-timeline { height: 420px; }
+  .timeline-legend { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 10px; }
+  .timeline-legend span { display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--text-secondary); }
+  .timeline-legend i { width:10px; height:3px; border-radius:999px; display:inline-block; }
+  #chart-tooltip {
+    position: fixed; pointer-events: none; z-index: 1000;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 12px; font-size: 12px;
+    color: var(--text); opacity: 0; transition: opacity 0.1s;
+    box-shadow: var(--shadow); max-width: 240px;
+  }
+  #chart-tooltip .tt-label { font-weight: 700; color: var(--accent); margin-bottom: 2px; }
+  #chart-tooltip .tt-value { color: var(--text-secondary); }
+  .clickable { cursor: pointer; }
+  .clickable:hover td { background: var(--accent-soft) !important; }
+
+  .table-wrap { overflow-x: auto; max-width: 100%; }
+  table {
+    width: 100%; min-width: 560px; border-collapse: collapse;
+    font-size: 12px;
+  }
+  th {
+    text-align: left; padding: 10px 12px;
+    font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    position: sticky; top: 0; z-index: 1;
+  }
+  th.right { text-align: right; }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--accent); background: var(--accent-soft); }
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+  td.right { text-align: right; }
+  tr:nth-child(even) td { background: color-mix(in oklch, var(--panel-strong) 25%, transparent); }
+  tr:hover td { background: color-mix(in oklch, var(--accent) 6%, transparent); }
+  tr.clickable { cursor: pointer; }
+  tr.clickable:hover td { background: var(--accent-soft); }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 600;
+    line-height: 1.4; white-space: nowrap;
+  }
+  .badge-model { background: var(--accent-soft); color: var(--accent); border: 1px solid color-mix(in oklch, var(--accent) 32%, transparent); }
+  .badge-tool { background: var(--good-soft); color: var(--good); border: 1px solid color-mix(in oklch, var(--good) 30%, transparent); }
+  .badge-err { background: var(--bad-soft); color: var(--bad); border: 1px solid color-mix(in oklch, var(--bad) 30%, transparent); }
+  .badge-muted { background: color-mix(in oklch, var(--muted) 18%, transparent); color: var(--muted); border: 1px solid color-mix(in oklch, var(--muted) 25%, transparent); }
+
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .session-path { overflow-wrap: anywhere; word-break: break-word; }
+  .detail-row { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 8px 14px; font-size: 12px; }
+  .detail-row + .detail-row { margin-top: 8px; }
+  .detail-label { color: var(--text-secondary); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+  .right { text-align: right; }
+  .text-good { color: var(--good); }
+  .text-bad { color: var(--bad); }
+  .text-accent { color: var(--accent); }
+  .text-muted { color: var(--muted); }
+  .text-secondary { color: var(--text-secondary); }
+  .font-bold { font-weight: 700; }
+  .text-sm { font-size: 12px; }
+  .text-xs { font-size: 11px; }
+
+  #tooltip {
+    position: fixed; pointer-events: none; z-index: 9999;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 12px;
+    font-size: 12px; color: var(--text);
+    box-shadow: var(--shadow);
+    display: none; max-width: 220px;
+  }
+  #dashboard-content.updating {
+    opacity: 0.6;
+    transition: opacity 0.3s ease;
+  }
+  .initial-load-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+  .loading-spinner {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    animation: spin 0.8s linear infinite;
+  }
+  .loading-title {
+    font-size: 18px;
+    font-weight: 740;
+    margin: 0 0 4px;
+  }
+  .loading-steps {
+    display: grid;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .loading-step {
+    height: 9px;
+    max-width: 520px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--panel-strong), var(--accent-soft), var(--panel-strong));
+    background-size: 220% 100%;
+    animation: shimmer 1.25s ease-in-out infinite;
+  }
+  .loading-step:nth-child(2) { max-width: 430px; animation-delay: 0.12s; }
+  .loading-step:nth-child(3) { max-width: 340px; animation-delay: 0.24s; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes shimmer { 0% { background-position: 120% 0; } 100% { background-position: -120% 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .loading-spinner, .loading-step { animation: none; }
+  }
+  .skip-link {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: var(--accent);
+    color: var(--bg);
+    padding: 8px 16px;
+    z-index: 100;
+    text-decoration: none;
+    border-radius: 0 0 6px 0;
+    font-weight: 600;
+    transition: top 0.2s;
+  }
+  .skip-link:focus {
+    top: 0;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+</style>
+</head>
+<body>
+<a href="#dashboard-content" class="skip-link">Skip to main content</a>
+<div id="aria-status" aria-live="polite" aria-atomic="true" class="sr-only"></div>
+
+<form id="filter-form" style="display:none;">
+  <input type="hidden" name="days" id="input-days" value="{{.Days}}">
+  <input type="hidden" name="harness" id="input-harness" value="{{.Harness}}">
+  <input type="hidden" name="provider" id="input-provider" value="{{.Provider}}">
+  <input type="hidden" name="model" id="input-model" value="{{.Model}}">
+  <input type="hidden" name="project" id="input-project" value="{{.Project}}">
+  <input type="hidden" name="tool" id="input-tool" value="{{.Tool}}">
+  <input type="hidden" name="filename" id="input-filename" value="{{.Filename}}">
+  <input type="hidden" name="sort_table" id="input-sort-table" value="{{.SortTable}}">
+  <input type="hidden" name="sort_by" id="input-sort-by" value="{{.SortBy}}">
+  <input type="hidden" name="sort_dir" id="input-sort-dir" value="{{.SortDir}}">
+</form>
+
+<div class="container">
+  <header class="app-header">
+    <div>
+      <h1 class="app-title">Harness Lens</h1>
+      <div class="app-subtitle" id="last-updated">Updated {{ .GeneratedAt }}</div>
+    </div>
+    <div class="header-actions">
+      <button class="theme-toggle" id="theme-toggle" type="button" onclick="toggleTheme()" aria-label="Toggle light and dark theme">Theme</button>
+      <div class="filter-bar" id="time-filters">
+      <button type="button" class="filter-pill {{if eq .Days 1}}active{{end}}" onclick="setTimeFilter(1)">24h</button>
+      <button type="button" class="filter-pill {{if eq .Days 2}}active{{end}}" onclick="setTimeFilter(2)">48h</button>
+      <button type="button" class="filter-pill {{if eq .Days 7}}active{{end}}" onclick="setTimeFilter(7)">7d</button>
+      <button type="button" class="filter-pill {{if eq .Days 30}}active{{end}}" onclick="setTimeFilter(30)">30d</button>
+      <button type="button" class="filter-pill {{if eq .Days 90}}active{{end}}" onclick="setTimeFilter(90)">90d</button>
+      <button type="button" class="filter-pill {{if eq .Days 0}}active{{end}}" onclick="setTimeFilter(0)">All</button>
+      </div>
+      <div class="etl-status" id="etl-status" data-state="{{.Diagnostics.State}}" title="{{.Diagnostics.CycleDescription}}">
+        <div><strong>ETL {{.Diagnostics.State}}</strong><span class="text-secondary"> · {{.Diagnostics.Message}}</span>{{if .Diagnostics.ErrorMessage}}<span class="etl-error"> · {{.Diagnostics.ErrorCode}}: {{.Diagnostics.ErrorMessage}}</span>{{end}}</div>
+        <div class="etl-meta mono">
+          {{if .Diagnostics.AutoRefreshEnabled}}<span>every {{.Diagnostics.RefreshIntervalMinutes}} min</span>{{else}}<span>auto off</span>{{end}}
+          {{if .Diagnostics.LastDuration}}<span>{{.Diagnostics.LastDuration}} ago</span>{{end}}
+          <label class="etl-control"><input id="auto-refresh-enabled" type="checkbox" {{if .Diagnostics.AutoRefreshEnabled}}checked{{end}} onchange="saveRefreshSettings()"> auto</label>
+          <label class="etl-control"><input id="auto-refresh-minutes" type="number" min="1" max="1440" value="{{.Diagnostics.RefreshIntervalMinutes}}" onchange="saveRefreshSettings()"> min</label>
+          <label class="etl-control" title="When off, refresh clears profanity aggregates and skips transient user-message extraction."><input id="profanity-enabled" type="checkbox" {{if .Diagnostics.ProfanityCollectionEnabled}}checked{{end}} onchange="saveProfanitySettings()"> profanity</label>
+          <button class="filter-pill" id="refresh-button" type="button" onclick="forceRefresh()" {{if .Diagnostics.RefreshInProgress}}disabled{{end}}>{{if .Diagnostics.RefreshInProgress}}Refreshing{{else}}Refresh{{end}}</button>
+        </div>
+      </div>
+    </div>
+    <div class="filter-bar page-nav" id="page-nav" aria-label="Analysis navigation">
+      <button class="filter-pill {{if eq .View "dashboard"}}active{{end}}" type="button" onclick="backToDashboard()">Overview</button>
+      <button class="filter-pill {{if eq .View "drill"}}active{{end}}" type="button" onclick="openDrill()">Timeline</button>
+      <button class="filter-pill {{if eq .View "profanity"}}active{{end}}" type="button" onclick="openProfanity()">Profanity</button>
+    </div>
+    <div class="active-filters" id="active-filters">
+      {{if .Harness}}<button type="button" class="filter-chip" onclick="setFilter('harness', '')">harness: {{ .Harness }} &times;</button>{{end}}
+      {{if .Provider}}<button type="button" class="filter-chip" onclick="setFilter('provider', '')">provider: {{ .Provider }} &times;</button>{{end}}
+      {{if .Model}}<button type="button" class="filter-chip" onclick="setFilter('model', '')">model: {{ .Model }} &times;</button>{{end}}
+      {{if .Project}}<button type="button" class="filter-chip" onclick="setFilter('project', '')">project: {{ .Project }} &times;</button>{{end}}
+      {{if .Tool}}<button type="button" class="filter-chip" onclick="setFilter('tool', '')">tool: {{ .Tool }} &times;</button>{{end}}
+      {{if .Filename}}<button type="button" class="filter-chip" onclick="setFilter('filename', '')">filename: {{ .Filename }} &times;</button>{{end}}
+      {{if .SortTable}}<button type="button" class="filter-chip" onclick="clearSort()">sort: {{.SortTable}}.{{.SortBy}} {{.SortDir}} &times;</button>{{end}}
+    </div>
+  </header>
+
+  <div id="dashboard-content">
+    {{ block "dashboard-content" . }}
+    {{if .IsFragment}}
+    <div class="filter-bar page-nav" id="page-nav" data-swap-oob="true" aria-label="Analysis navigation">
+      <button class="filter-pill {{if eq .View "dashboard"}}active{{end}}" type="button" onclick="backToDashboard()">Overview</button>
+      <button class="filter-pill {{if eq .View "drill"}}active{{end}}" type="button" onclick="openDrill()">Timeline</button>
+      <button class="filter-pill {{if eq .View "profanity"}}active{{end}}" type="button" onclick="openProfanity()">Profanity</button>
+    </div>
+    <div class="active-filters" id="active-filters" data-swap-oob="true">
+      {{if .Harness}}<button type="button" class="filter-chip" onclick="setFilter('harness', '')">harness: {{ .Harness }} &times;</button>{{end}}
+      {{if .Provider}}<button type="button" class="filter-chip" onclick="setFilter('provider', '')">provider: {{ .Provider }} &times;</button>{{end}}
+      {{if .Model}}<button type="button" class="filter-chip" onclick="setFilter('model', '')">model: {{ .Model }} &times;</button>{{end}}
+      {{if .Project}}<button type="button" class="filter-chip" onclick="setFilter('project', '')">project: {{ .Project }} &times;</button>{{end}}
+      {{if .Tool}}<button type="button" class="filter-chip" onclick="setFilter('tool', '')">tool: {{ .Tool }} &times;</button>{{end}}
+      {{if .Filename}}<button type="button" class="filter-chip" onclick="setFilter('filename', '')">filename: {{ .Filename }} &times;</button>{{end}}
+      {{if .SortTable}}<button type="button" class="filter-chip" onclick="clearSort()">sort: {{.SortTable}}.{{.SortBy}} {{.SortDir}} &times;</button>{{end}}
+    </div>
+    <div class="filter-bar" id="time-filters" data-swap-oob="true">
+      <button type="button" class="filter-pill {{if eq .Days 1}}active{{end}}" onclick="setTimeFilter(1)">24h</button>
+      <button type="button" class="filter-pill {{if eq .Days 2}}active{{end}}" onclick="setTimeFilter(2)">48h</button>
+      <button type="button" class="filter-pill {{if eq .Days 7}}active{{end}}" onclick="setTimeFilter(7)">7d</button>
+      <button type="button" class="filter-pill {{if eq .Days 30}}active{{end}}" onclick="setTimeFilter(30)">30d</button>
+      <button type="button" class="filter-pill {{if eq .Days 90}}active{{end}}" onclick="setTimeFilter(90)">90d</button>
+      <button type="button" class="filter-pill {{if eq .Days 0}}active{{end}}" onclick="setTimeFilter(0)">All</button>
+    </div>
+    <div class="etl-status" id="etl-status" data-state="{{.Diagnostics.State}}" data-swap-oob="true" title="{{.Diagnostics.CycleDescription}}">
+      <div><strong>ETL {{.Diagnostics.State}}</strong><span class="text-secondary"> · {{.Diagnostics.Message}}</span>{{if .Diagnostics.ErrorMessage}}<span class="etl-error"> · {{.Diagnostics.ErrorCode}}: {{.Diagnostics.ErrorMessage}}</span>{{end}}</div>
+      <div class="etl-meta mono">
+        {{if .Diagnostics.AutoRefreshEnabled}}<span>every {{.Diagnostics.RefreshIntervalMinutes}} min</span>{{else}}<span>auto off</span>{{end}}
+        {{if .Diagnostics.LastDuration}}<span>{{.Diagnostics.LastDuration}} ago</span>{{end}}
+        <label class="etl-control"><input id="auto-refresh-enabled" type="checkbox" {{if .Diagnostics.AutoRefreshEnabled}}checked{{end}} onchange="saveRefreshSettings()"> auto</label>
+        <label class="etl-control"><input id="auto-refresh-minutes" type="number" min="1" max="1440" value="{{.Diagnostics.RefreshIntervalMinutes}}" onchange="saveRefreshSettings()"> min</label>
+        <label class="etl-control" title="When off, refresh clears profanity aggregates and skips transient user-message extraction."><input id="profanity-enabled" type="checkbox" {{if .Diagnostics.ProfanityCollectionEnabled}}checked{{end}} onchange="saveProfanitySettings()"> profanity</label>
+        <button class="filter-pill" id="refresh-button" type="button" onclick="forceRefresh()" {{if .Diagnostics.RefreshInProgress}}disabled{{end}}>{{if .Diagnostics.RefreshInProgress}}Refreshing{{else}}Refresh{{end}}</button>
+      </div>
+    </div>
+    {{end}}
+    {{if not .Diagnostics.TablesReady}}
+    <section class="section">
+      <div class="card initial-load-card">
+        {{if eq .Diagnostics.State "error"}}
+        <div class="loading-spinner" style="animation:none; border-color:var(--bad);" aria-hidden="true"></div>
+        <div>
+          <h2 class="loading-title text-bad">Initial load failed</h2>
+          <div class="text-secondary">{{.Diagnostics.Message}}</div>
+          {{if .Diagnostics.ErrorMessage}}<div class="etl-error" style="margin-top:8px;">{{.Diagnostics.ErrorCode}}: {{.Diagnostics.ErrorMessage}}</div>{{end}}
+          <button class="filter-pill" type="button" style="margin-top:14px;" onclick="forceRefresh()">Retry refresh</button>
+        </div>
+        {{else}}
+        <div class="loading-spinner" role="status" aria-label="Processing initial data"></div>
+        <div>
+          <h2 class="loading-title">Processing initial data...</h2>
+          <div class="text-secondary">Harness Lens is reading local harness transcripts into an in-memory DuckDB database. The dashboard will fill in automatically when the first refresh finishes.</div>
+          <div class="loading-steps" aria-hidden="true">
+            <div class="loading-step"></div>
+            <div class="loading-step"></div>
+            <div class="loading-step"></div>
+          </div>
+          <div class="kpi-sub" style="margin-top:12px;">{{.Diagnostics.Message}}</div>
+        </div>
+        {{end}}
+      </div>
+    </section>
+    {{else if eq .View "session"}}
+    {{template "session-content" .}}
+    {{else if eq .View "drill"}}
+    {{template "drill-content" .}}
+    {{else if eq .View "profanity"}}
+    {{template "profanity-content" .}}
+    {{else}}
+    <!-- Primary KPIs -->
+    <div class="section">
+      <div class="section-title">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.612 8.049c.297-2.837 2.517-5.067 5.346-5.364a.71.71 0 0 1 .822.71v5.346a.71.71 0 0 1-.71.71H1.902a.71.71 0 0 1-.71-.822l.42-3.58Zm.71 5.01h4.624V8.73H2.322v4.329Zm5.346-5.011v4.329h4.329a6.37 6.37 0 0 0-4.33-4.329Z"/></svg>
+        At a Glance
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="kpi-label">Total Spend</div>
+          <div class="kpi-value text-good">{{.Summary.TotalSpendDisplay}}</div>
+          <div class="kpi-sub">{{.Summary.Sessions}} sessions</div>
+        </div>
+        <div class="card">
+          <div class="kpi-label">Total Tokens</div>
+          <div class="kpi-value">{{.Summary.TotalTokensDisplay}}</div>
+          <div class="kpi-sub">{{.Summary.TokenBreakdownDisplay}}</div>
+        </div>
+        <div class="card">
+          <div class="kpi-label">Sessions</div>
+          <div class="kpi-value">{{.Summary.Sessions}}</div>
+          <div class="kpi-sub">{{.Summary.MultiModelSessionsPct}} multi-model</div>
+        </div>
+        <div class="card">
+          <div class="kpi-label">Avg Duration</div>
+          <div class="kpi-value">{{.Summary.AvgDurationDisplay}}</div>
+          <div class="kpi-sub">{{.Summary.TimedSessions}} timed sessions</div>
+        </div>
+        <div class="card">
+          <div class="kpi-label">Tool Calls</div>
+          <div class="kpi-value">{{.Summary.ToolCallsDisplay}}</div>
+          <div class="kpi-sub"><span class="text-bad">{{.Summary.ToolErrorsDisplay}} errors</span> ({{.Summary.ToolErrorPct}})</div>
+        </div>
+        <div class="card">
+          <div class="kpi-label">Profanity</div>
+          <div class="kpi-value text-bad">{{.ProfanitySummary.TotalSwears}}</div>
+          <div class="kpi-sub" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <label class="etl-control" style="font-size:11px; margin:0;">
+              <input id="profanity-enabled-kpi" type="checkbox" {{if .Diagnostics.ProfanityCollectionEnabled}}checked{{end}} onchange="saveProfanitySettings(this)"> {{if .Diagnostics.ProfanityCollectionEnabled}}collecting{{else}}paused{{end}}
+            </label>
+            <a href="/profanity?days={{.Days}}" style="font-size:11px; color:var(--accent); text-decoration:none;" onclick="event.preventDefault(); openProfanity()">view</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+
+    <!-- Charts -->
+    <div class="section">
+      <div class="section-title">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 1.75a.75.75 0 0 0-1.5 0v12.5c0 .138.112.25.25.25h14.5a.25.25 0 0 0 .25-.25V1.75a.75.75 0 0 0-1.5 0v10.826L9.55 6.17a.75.75 0 0 0-1.1 0L4.5 10.276V1.75Zm9.269 4.691.97-1.061 3.35 3.348V13h-1v-4.37L10.769 6.441Z"/></svg>
+        Breakdown
+      </div>
+      <div class="grid grid-4">
+        <div class="chart-box">
+          <div class="chart-title">Spend by Harness</div>
+          <canvas id="chart-harnesses" height="220"
+            data-chart='{{json .Harnesses}}' data-type="hbar"
+            data-label="harness" data-value="spend" data-filter="harness" data-drill="true"></canvas>
+        </div>
+        <div class="chart-box">
+          <div class="chart-title">Spend by Provider</div>
+          <canvas id="chart-providers" height="220"
+            data-chart='{{json .Providers}}' data-type="hbar"
+            data-label="provider" data-value="spend" data-filter="provider" data-drill="true"></canvas>
+        </div>
+        <div class="chart-box">
+          <div class="chart-title">Spend by Model</div>
+          <canvas id="chart-models-cost" height="220"
+            data-chart='{{json .Models}}' data-type="hbar"
+            data-label="model" data-value="spend" data-filter="model" data-drill="true"></canvas>
+        </div>
+        <div class="chart-box">
+          <div class="chart-title">Top 10 Tools</div>
+          <canvas id="chart-tools" height="320"
+            data-chart='{{json .Tools}}'
+            data-type="bar" data-label="tool" data-value="count" data-error="errors" data-filter="tool" data-drill="true"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sessions Table -->
+    <div class="section">
+      <div class="section-title">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 10.25 10H7.061l-2.574 2.573A1.458 1.458 0 0 1 2 11.543V10h-.25A1.75 1.75 0 0 1 0 8.25v-5.5C0 1.784.784 1 1.75 1ZM1.5 2.75v5.5c0 .138.112.25.25.25h1.25a.75.75 0 0 1 .75.75v1.243l2.067-2.066a.75.75 0 0 1 .533-.22h3.85a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25Zm13 2h-.78l-.13.13a.75.75 0 1 1-1.06-1.061l.13-.13V1.75a.25.25 0 0 0-.25-.25h-1.5a.75.75 0 0 1 0-1.5h1.5c.966 0 1.75.784 1.75 1.75v1.879a.75.75 0 0 1-.22.53Z"/></svg>
+        Recent Sessions <span style="font-weight:400; text-transform:none; letter-spacing:0; color:var(--muted);">(click a row to open)</span>
+      </div>
+      <div class="card" style="padding:0; overflow:hidden;">
+        <div style="padding:8px 16px; border-bottom:1px solid var(--border); font-size:11px; color:var(--text-secondary);">
+          Showing {{len .Sessions}} of {{.TotalSessions}} sessions
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="sortable" onclick="setSort('sessions','when')">When</th>
+                <th>Harness</th>
+                <th class="sortable" onclick="setSort('sessions','project')">Project</th>
+                <th>Models</th>
+                <th class="right sortable" onclick="setSort('sessions','spend')">Spend</th>
+                <th class="right sortable" onclick="setSort('sessions','tokens')">Tokens (In/Out/Cache)</th>
+                <th class="right sortable" onclick="setSort('sessions','duration')">Duration</th>
+                <th class="right sortable" onclick="setSort('sessions','turns')">Turns</th>
+              </tr>
+            </thead>
+            <tbody>
+            {{range .Sessions}}
+            <tr class="clickable" data-filename="{{.Filename}}" data-harness="{{.Harness}}" onclick="openSession(this)">
+              <td class="mono text-secondary">{{.StartTimeStr}}</td>
+              <td><span class="badge badge-muted">{{.Harness}}</span></td>
+              <td><div class="font-bold">{{.Project}}</div></td>
+              <td>
+                {{range .Models}}
+                <span class="badge badge-model">{{.}}</span>
+                {{end}}
+              </td>
+              <td class="right mono text-good">{{.CostDisplay}}</td>
+              <td class="right mono text-secondary">{{.TokenBreakdownDisplay}}</td>
+              <td class="right mono text-secondary">{{.DurationDisplay}}</td>
+              <td class="right mono">{{.AgentTurns}}</td>
+            </tr>
+            {{else}}
+            <tr><td colspan="8" class="text-secondary" style="text-align:center; padding:24px;">No sessions match the current filters.</td></tr>
+            {{end}}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {{end}}
+    <script>
+      // Trigger charts to re-render using the existing renderCharts logic
+      setTimeout(renderCharts, 10);
+    </script>
+    {{ end }}
+  </div>
+</div>
+
+<div id="chart-tooltip"></div>
+
+<script>
+
+// Minimal chart rendering - reads data from data-* attributes
+const $ = id => document.getElementById(id);
+const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+function hexToRgb(hex) {
+  let c = hex.substring(1);
+  if (c.length === 3) c = c.split('').map(x => x + x).join('');
+  return `${parseInt(c.substr(0,2),16)},${parseInt(c.substr(2,2),16)},${parseInt(c.substr(4,2),16)}`;
+}
+
+const provColors = {
+  pi: '#58a6ff', opencode: '#a371f7', claude: '#f85149', codex: '#3fb950', gemini: '#ffa657',
+  openai: '#3fb950', 'openai-codex': '#3fb950', google: '#f85149', anthropic: '#a371f7',
+  deepseek: '#58a6ff', moonshotai: '#d29922', minimax: '#79c0ff', fireworks: '#ffa657',
+  'fireworks-ai': '#ffa657', 'opencode-go': '#2f81f7', unknown: '#6e7681'
+};
+
+function setupCanvas(c) {
+  const rect = c.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) return null;
+  const dpr = window.devicePixelRatio || 1;
+  c.width = rect.width * dpr; c.height = rect.height * dpr;
+  const ctx = c.getContext('2d');
+  ctx.scale(dpr, dpr);
+  return { ctx, w: rect.width, h: rect.height };
+}
+
+function drawDonut(c, data, labelKey, valueKey) {
+  const setup = setupCanvas(c);
+  if (!setup) { console.log('Donut canvas zero size', c.id); return; }
+  const { ctx, w, h } = setup;
+  const cx = w/2, cy = h/2, r = Math.min(w,h)*0.38, ri = r*0.62;
+  const total = data.reduce((s,d) => s + (d[valueKey]||0), 0);
+  const defaultCols = ['#58a6ff','#a371f7','#3fb950','#f85149','#d29922','#79c0ff','#ffa657','#56d364','#f778ba','#2f81f7'];
+  let a = -Math.PI/2;
+  ctx.clearRect(0,0,w,h);
+  data.forEach((d,i) => {
+    const v = d[valueKey]||0, frac = total>0 ? v/total : 0, slice = frac*Math.PI*2;
+    const col = provColors[d[labelKey]] || defaultCols[i % defaultCols.length];
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(cx,cy,r,a,a+slice); ctx.arc(cx,cy,ri,a+slice,a,true); ctx.closePath(); ctx.fill();
+    a += slice;
+  });
+  ctx.fillStyle = cssVar('--text'); ctx.font = 'bold 28px ui-monospace, Menlo, monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(data.length, cx, cy-10);
+  ctx.font = '12px sans-serif'; ctx.fillStyle = cssVar('--text-secondary'); ctx.fillText(labelKey + 's', cx, cy+14);
+}
+
+function truncateCanvasText(ctx, text, maxWidth) {
+  const raw = String(text || 'unknown');
+  if (ctx.measureText(raw).width <= maxWidth) return raw;
+  let out = raw;
+  while (out.length > 1 && ctx.measureText(out + '...').width > maxWidth) {
+    out = out.slice(0, -1);
+  }
+  return out.length > 1 ? out + '...' : raw.slice(0, 1);
+}
+
+function chartValueDisplay(row, valueKey, value) {
+  const display = row[valueKey + '_display'];
+  if (display) return display;
+  if (valueKey === 'spend' || valueKey === 'cost') return '$' + Number(value || 0).toFixed(2);
+  return Intl.NumberFormat().format(value || 0);
+}
+
+function barLayout(w) {
+  const labelW = Math.min(Math.max(92, w * 0.32), 170);
+  const valueW = Math.min(Math.max(68, w * 0.22), 110);
+  const x = labelW + 10;
+  return { labelW, valueW, x, maxBarW: Math.max(24, w - x - valueW - 14) };
+}
+
+function drawHBar(c, data, labelKey, valueKey, errorKey) {
+  const setup = setupCanvas(c);
+  if (!setup) { console.log('HBar canvas zero size', c.id); return; }
+  const { ctx, w } = setup;
+  const barH = 18, gap = 10;
+  const layout = barLayout(w);
+  const maxV = Math.max(...data.map(r => r[valueKey] || 0), 1);
+  ctx.clearRect(0, 0, w, c.getBoundingClientRect().height);
+  data.slice(0, 10).forEach((r, i) => {
+    const tot = r[valueKey] || 0;
+    const err = r[errorKey] || 0;
+    const suc = Math.max(0, tot - err);
+    const y = i * (barH + gap) + 16;
+    const bw = tot > 0 ? Math.max(3, (tot / maxV) * layout.maxBarW) : 0;
+    const sucW = tot > 0 ? Math.max(0, (suc / maxV) * layout.maxBarW) : 0;
+    const errW = tot > 0 ? Math.max(0, (err / maxV) * layout.maxBarW) : 0;
+    ctx.fillStyle = cssVar('--panel-strong');
+    ctx.fillRect(layout.x, y, layout.maxBarW, barH);
+    if (bw > 0) {
+      ctx.fillStyle = cssVar('--good');
+      ctx.fillRect(layout.x, y, Math.min(sucW, bw), barH);
+      if (errW > 0) {
+        ctx.fillStyle = cssVar('--bad');
+        ctx.fillRect(layout.x + Math.min(sucW, bw), y, Math.min(errW, layout.maxBarW - Math.min(sucW, bw)), barH);
+      }
+    }
+    ctx.fillStyle = cssVar('--text');
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(truncateCanvasText(ctx, r[labelKey], layout.labelW - 14), 8, y + barH / 2);
+    ctx.font = '11px ui-monospace, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillStyle = err > 0 ? cssVar('--bad') : cssVar('--text-secondary');
+    ctx.fillText(`${chartValueDisplay(r, valueKey, tot)} · ${err} err`, w - 8, y + barH / 2);
+  });
+}
+function drawHBarSimple(c, data, labelKey, valueKey) {
+  const setup = setupCanvas(c);
+  if (!setup) { console.log('HBarSimple canvas zero size', c.id); return; }
+  const { ctx, w } = setup;
+  const barH = 18, gap = 10;
+  const layout = barLayout(w);
+  const maxV = Math.max(...data.map(r => r[valueKey] || 0), 1);
+  ctx.clearRect(0, 0, w, c.getBoundingClientRect().height);
+  data.slice(0, 10).forEach((r, i) => {
+    const v = r[valueKey] || 0;
+    const y = i * (barH + gap) + 16;
+    const bw = v > 0 ? Math.max(3, (v / maxV) * layout.maxBarW) : 0;
+    ctx.fillStyle = cssVar('--panel-strong');
+    ctx.fillRect(layout.x, y, layout.maxBarW, barH);
+    if (bw > 0) {
+      ctx.fillStyle = cssVar('--accent');
+      ctx.fillRect(layout.x, y, bw, barH);
+    }
+    ctx.fillStyle = cssVar('--text');
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(truncateCanvasText(ctx, r[labelKey], layout.labelW - 14), 8, y + barH / 2);
+    ctx.font = '11px ui-monospace, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillStyle = cssVar('--text-secondary');
+    ctx.fillText(chartValueDisplay(r, valueKey, v), w - 8, y + barH / 2);
+  });
+}
+
+const timelineSeries = [
+  { key: 'cost', label: 'Spend', color: '#58a6ff' },
+  { key: 'tokens', label: 'Tokens', color: '#a371f7' },
+  { key: 'tool_calls', label: 'Tool calls', color: '#3fb950' },
+  { key: 'tool_errors', label: 'Tool errors', color: '#f85149' },
+  { key: 'profanity_hits', label: 'Profanity', color: '#ffa657', style: 'stem' },
+  { key: 'feel_score', label: 'Feel', color: '#d29922', style: 'dash' }
+];
+
+function drawTimeline(c, data) {
+  const setup = setupCanvas(c);
+  if (!setup) { console.log('Timeline canvas zero size', c.id); return; }
+  const { ctx, w, h } = setup;
+  const pad = {l:116, r:22, t:12, b:32};
+  const chartW = w-pad.l-pad.r, chartH = h-pad.t-pad.b;
+  const n = data.length;
+  const laneGap = 8;
+  const laneH = (chartH - laneGap * (timelineSeries.length - 1)) / timelineSeries.length;
+  ctx.clearRect(0,0,w,h);
+  if (n === 0) return;
+  const xFor = i => n === 1 ? pad.l + chartW/2 : pad.l + (i/(n-1))*chartW;
+
+  timelineSeries.forEach((series, lane) => {
+    const maxV = Math.max(...data.map(d => d[series.key] || 0), 0);
+    const top = pad.t + lane * (laneH + laneGap);
+    const bottom = top + laneH;
+    const mid = top + laneH / 2;
+
+    ctx.strokeStyle = cssVar('--border'); ctx.lineWidth = 1; ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.moveTo(pad.l, bottom); ctx.lineTo(w-pad.r, bottom); ctx.stroke();
+    ctx.fillStyle = cssVar('--text-secondary'); ctx.font = '11px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(series.label, pad.l - 12, mid);
+    ctx.fillStyle = cssVar('--muted'); ctx.font = '9px ui-monospace, monospace';
+    ctx.fillText(maxV > 0 ? 'max ' + String(maxV) : 'none', pad.l - 12, mid + 13);
+
+    if (maxV <= 0) return;
+    if (series.style === 'stem') {
+      const barW = Math.max(3, Math.min(7, chartW / Math.max(n * 3, 1)));
+      data.forEach((d,i) => {
+        const v = d[series.key] || 0;
+        if (v <= 0) return;
+        const x = xFor(i), y = bottom - (v / maxV) * laneH;
+        ctx.globalAlpha = 0.32;
+        ctx.fillStyle = series.color;
+        ctx.fillRect(x - barW/2, y, barW, bottom - y);
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = series.color; ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.moveTo(x, bottom); ctx.lineTo(x, y); ctx.stroke();
+        ctx.fillStyle = series.color; ctx.beginPath(); ctx.arc(x,y,2.8,0,Math.PI*2); ctx.fill();
+      });
+      return;
+    }
+
+    ctx.strokeStyle = series.color; ctx.lineWidth = series.key === 'cost' ? 2.2 : 1.8; ctx.globalAlpha = series.style === 'dash' ? 0.95 : 0.86;
+    ctx.setLineDash(series.style === 'dash' ? [6, 4] : []);
+    ctx.beginPath();
+    data.forEach((d,i) => {
+      const x = xFor(i), y = bottom - ((d[series.key] || 0) / maxV) * laneH;
+      if (i === 0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+    data.forEach((d,i) => {
+      const v = d[series.key] || 0;
+      if (v <= 0) return;
+      const x = xFor(i), y = bottom - (v / maxV) * laneH;
+      ctx.fillStyle = series.color; ctx.beginPath(); ctx.arc(x,y,2.1,0,Math.PI*2); ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  });
+
+  const step = Math.max(1, Math.ceil(n/8));
+  ctx.fillStyle=cssVar('--text-secondary'); ctx.font='10px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+  data.forEach((d,i)=>{ if (i%step===0 || i===n-1) ctx.fillText(d.date.slice(5), xFor(i), h-10); });
+}
+
+const tooltip = document.getElementById('chart-tooltip');
+function showTooltip(x, y, html) {
+  tooltip.innerHTML = html;
+  tooltip.style.left = (x + 12) + 'px';
+  tooltip.style.top = (y + 12) + 'px';
+  tooltip.style.display = 'block';
+  tooltip.style.opacity = '1';
+}
+function hideTooltip() {
+  tooltip.style.opacity = '0';
+  setTimeout(() => { tooltip.style.display = 'none'; }, 150);
+}
+
+function getDonutSlice(data, valueKey, mx, my, w, h) {
+  const cx = w/2, cy = h/2;
+  const dx = mx - cx, dy = my - cy;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const r = Math.min(w,h)*0.38, ri = r*0.62;
+  if (dist < ri || dist > r) return null;
+  let angle = Math.atan2(dy, dx);
+  angle = angle + Math.PI/2;
+  if (angle < 0) angle += Math.PI*2;
+  const total = data.reduce((s,d) => s + (d[valueKey]||0), 0);
+  let cum = 0;
+  for (let i = 0; i < data.length; i++) {
+    const frac = total > 0 ? (data[i][valueKey]||0)/total : 0;
+    const slice = frac * Math.PI*2;
+    if (angle >= cum && angle < cum + slice) return { idx: i, frac: frac };
+    cum += slice;
+  }
+  return null;
+}
+
+function resetChartListeners(c) {
+  if (c._chartAbort) c._chartAbort.abort();
+  const controller = new AbortController();
+  c._chartAbort = controller;
+  return controller.signal;
+}
+
+function attachDonutHover(c, data, labelKey, valueKey) {
+  const signal = resetChartListeners(c);
+  const rect = c.getBoundingClientRect();
+  const w = rect.width, h = rect.height;
+  c.addEventListener('mousemove', e => {
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const slice = getDonutSlice(data, valueKey, mx, my, w, h);
+    if (slice) {
+      const d = data[slice.idx];
+      const total = data.reduce((s,x) => s + (x[valueKey]||0), 0);
+      const pct = total > 0 ? ((d[valueKey]||0)/total*100).toFixed(1) : '0.0';
+      const display = d[valueKey + '_display'] || String(d[valueKey] || 0);
+      showTooltip(e.clientX, e.clientY,
+        `<div class="tt-label">${d[labelKey]}</div>` +
+        `<div class="tt-value">${display} · ${pct}%</div>`);
+    } else {
+      hideTooltip();
+    }
+  }, {signal});
+  c.addEventListener('mouseleave', hideTooltip, {signal});
+  c.addEventListener('click', e => {
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const slice = getDonutSlice(data, valueKey, mx, my, w, h);
+    if (slice) {
+      const filter = c.dataset.filter;
+      if (filter && c.dataset.drill === 'true') {
+        const changes = { [filter]: data[slice.idx][labelKey] };
+        if (filter === 'model' && data[slice.idx].provider) changes.provider = data[slice.idx].provider;
+        openDrill(changes);
+      } else if (filter) {
+        setFilter(filter, data[slice.idx][labelKey]);
+      }
+    }
+  }, {signal});
+}
+
+function attachBarHover(c, data, labelKey, valueKey, errorKey) {
+  const signal = resetChartListeners(c);
+  const rect = c.getBoundingClientRect();
+  const barH = 20, gap = 8;
+  c.addEventListener('mousemove', e => {
+    const my = e.clientY - rect.top;
+    const idx = Math.floor((my - 16) / (barH + gap));
+    if (idx >= 0 && idx < Math.min(data.length, 10)) {
+      const d = data[idx];
+      const tot = d[valueKey]||0, err = d[errorKey]||0;
+      showTooltip(e.clientX, e.clientY,
+        `<div class="tt-label">${d[labelKey]}</div>` +
+        `<div class="tt-value">${tot} calls · ${err} errors</div>`);
+    } else {
+      hideTooltip();
+    }
+  }, {signal});
+  c.addEventListener('mouseleave', hideTooltip, {signal});
+  c.addEventListener('click', e => {
+    const my = e.clientY - rect.top;
+    const idx = Math.floor((my - 16) / (barH + gap));
+    if (idx >= 0 && idx < Math.min(data.length, 10)) {
+      const filter = c.dataset.filter;
+      if (filter && c.dataset.drill === 'true') openDrill({ [filter]: data[idx][labelKey] });
+      else if (filter) setFilter(filter, data[idx][labelKey]);
+    }
+  }, {signal});
+}
+function attachHBarHover(c, data, labelKey, valueKey) {
+  const signal = resetChartListeners(c);
+  const rect = c.getBoundingClientRect();
+  const barH = 20, gap = 8;
+  c.addEventListener('mousemove', e => {
+    const my = e.clientY - rect.top;
+    const idx = Math.floor((my - 16) / (barH + gap));
+    if (idx >= 0 && idx < Math.min(data.length, 10)) {
+      const d = data[idx];
+      const v = d[valueKey] || 0;
+      const display = chartValueDisplay(d, valueKey, v);
+      showTooltip(e.clientX, e.clientY,
+        `<div class="tt-label">${d[labelKey]}</div>` +
+        `<div class="tt-value">${display}</div>`);
+    } else {
+      hideTooltip();
+    }
+  }, {signal});
+  c.addEventListener('mouseleave', hideTooltip, {signal});
+  c.addEventListener('click', e => {
+    const my = e.clientY - rect.top;
+    const idx = Math.floor((my - 16) / (barH + gap));
+    if (idx >= 0 && idx < Math.min(data.length, 10)) {
+      const filter = c.dataset.filter;
+      if (filter && c.dataset.drill === 'true') {
+        const changes = { [filter]: data[idx][labelKey] };
+        if (filter === 'model' && data[idx].provider) changes.provider = data[idx].provider;
+        openDrill(changes);
+      } else if (filter) {
+        setFilter(filter, data[idx][labelKey]);
+      }
+    }
+  }, {signal});
+}
+
+function attachTimelineHover(c, data) {
+  const signal = resetChartListeners(c);
+  const rect = c.getBoundingClientRect();
+  const w = rect.width;
+  const pad = {l:54, r:20, t:18, b:32};
+  const chartW = w - pad.l - pad.r;
+  const n = data.length;
+  c.addEventListener('mousemove', e => {
+    const mx = e.clientX - rect.left;
+    if (mx < pad.l || mx > w - pad.r || n === 0) { hideTooltip(); return; }
+    const idx = n === 1 ? 0 : Math.min(n - 1, Math.max(0, Math.round(((mx - pad.l) / chartW) * (n - 1))));
+    const d = data[idx];
+    showTooltip(e.clientX, e.clientY,
+      `<div class="tt-label">${d.date} · feel: ${d.feel_display || 'calm'}</div>` +
+      `<div class="tt-value">${d.cost_display || String(d.cost || 0)} spend · ${d.tokens_display || String(d.tokens || 0)} tokens</div>` +
+      `<div class="tt-value">${d.tool_calls_display || String(d.tool_calls || 0)} tools · ${d.tool_errors_display || String(d.tool_errors || 0)} errors</div>` +
+      `<div class="tt-value">${d.profanity_hits_display || String(d.profanity_hits || 0)} swears · feel score ${d.feel_score || 0}</div>`);
+  }, {signal});
+  c.addEventListener('mouseleave', hideTooltip, {signal});
+}
+
+function renderCharts() {
+  requestAnimationFrame(() => {
+    document.querySelectorAll('canvas[data-chart]').forEach(c => {
+      if (!c.dataset.chart || c.dataset.chart === '[]') return;
+      const data = JSON.parse(c.dataset.chart);
+      if (!data || !data.length) return;
+      if (c.dataset.type === 'bar') return;
+      if (c.dataset.type === 'hbar') {
+        drawHBarSimple(c, data, c.dataset.label, c.dataset.value);
+        attachHBarHover(c, data, c.dataset.label, c.dataset.value);
+        return;
+      }
+      if (c.dataset.type === 'donut' || !c.dataset.type) {
+        drawDonut(c, data, c.dataset.label, c.dataset.value);
+        attachDonutHover(c, data, c.dataset.label, c.dataset.value);
+      }
+    });
+    const tools = document.getElementById('chart-tools');
+    if (tools && tools.dataset.chart && tools.dataset.chart !== '[]') {
+      const data = JSON.parse(tools.dataset.chart);
+      if (data && data.length) {
+        drawHBar(tools, data, tools.dataset.label, tools.dataset.value, tools.dataset.error);
+        attachBarHover(tools, data, tools.dataset.label, tools.dataset.value, tools.dataset.error);
+      }
+    }
+    const tl = document.getElementById('chart-timeline');
+    if (tl && tl.dataset.timeline && tl.dataset.timeline !== '[]') {
+      const data = JSON.parse(tl.dataset.timeline);
+      if (data && data.length) {
+        drawTimeline(tl, data);
+        attachTimelineHover(tl, data);
+      }
+    }
+  });
+}
+
+function hydrateInteractive(root = document) {
+    root.querySelectorAll('.filter-pill, .filter-chip, th.sortable, tr.clickable').forEach(el => {
+        if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
+        if (!el.hasAttribute('role')) el.setAttribute('role', 'button');
+    });
+}
+document.addEventListener('keydown', e => {
+    const target = e.target;
+    if ((e.key === 'Enter' || e.key === ' ') && target && target.matches && target.matches('.filter-pill, .filter-chip, th.sortable, tr.clickable')) {
+        e.preventDefault();
+        target.click();
+    }
+});
+
+function currentTheme() {
+    return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+}
+function updateThemeToggle() {
+    const btn = document.getElementById('theme-toggle');
+    if (!btn) return;
+    const theme = currentTheme();
+    btn.textContent = theme === 'light' ? 'Dark mode' : 'Light mode';
+    btn.setAttribute('aria-pressed', theme === 'light' ? 'true' : 'false');
+}
+function copyResumeCommand(button) {
+    const cmd = button && button.dataset ? button.dataset.resume : '';
+    if (!cmd) return;
+    const original = button.textContent;
+    navigator.clipboard.writeText(cmd).then(() => {
+        button.textContent = 'Copied';
+        setTimeout(() => { button.textContent = original; }, 900);
+    }).catch(() => {});
+}
+function toggleTheme() {
+    const next = currentTheme() === 'light' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('harness-theme', next); } catch (_) {}
+    updateThemeToggle();
+    setTimeout(renderCharts, 60);
+}
+
+let dashboardStream = null;
+let streamGeneration = 0;
+
+function formParams() {
+    const form = document.getElementById('filter-form');
+    return new URLSearchParams(new FormData(form));
+}
+function cleanedUrlParams(params) {
+    const clean = new URLSearchParams(params);
+    clean.delete('view');
+    Array.from(clean.entries()).forEach(([key, value]) => {
+        if (value === '' || (key === 'days' && value === '0')) clean.delete(key);
+    });
+    return clean;
+}
+function pushDashboardUrl(view, params, replace = false) {
+    const clean = cleanedUrlParams(params);
+    const path = view === 'session' ? '/session' : (view === 'drill' ? '/drill' : (view === 'profanity' ? '/profanity' : '/'));
+    const qs = clean.toString();
+    const url = qs ? `${path}?${qs}` : path;
+    const method = replace ? 'replaceState' : 'pushState';
+    history[method]({}, '', url);
+}
+function viewFromLocation() {
+    if (location.pathname === '/session') return 'session';
+    if (location.pathname === '/drill') return 'drill';
+    if (location.pathname === '/profanity') return 'profanity';
+    return 'dashboard';
+}
+function syncFormFromLocation() {
+    const params = new URLSearchParams(location.search);
+    document.querySelectorAll('#filter-form input').forEach(input => {
+        input.value = params.get(input.name) || (input.name === 'days' ? '0' : '');
+    });
+}
+function applyServerHTML(html) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = html;
+    tpl.content.querySelectorAll('[data-swap-oob]').forEach(node => {
+        const target = node.id ? document.getElementById(node.id) : null;
+        if (target) target.replaceWith(node.cloneNode(true));
+        node.remove();
+    });
+    const content = document.getElementById('dashboard-content');
+    content.replaceChildren(tpl.content);
+    const etlStatus = document.getElementById('etl-status');
+    if (etlStatus) {
+        const wasRunning = content.classList.contains('updating');
+        const isRunning = etlStatus.dataset.state === 'running';
+        content.classList.toggle('updating', isRunning);
+        if (wasRunning && !isRunning) {
+            const ariaStatus = document.getElementById('aria-status');
+            if (ariaStatus) ariaStatus.textContent = 'Data refreshed';
+        }
+    }
+    hydrateInteractive();
+    updateThemeToggle();
+    setTimeout(renderCharts, 10);
+}
+function connectDashboardStream(view = viewFromLocation()) {
+    if (dashboardStream) dashboardStream.close();
+    const params = formParams();
+    params.set('view', view);
+    const generation = ++streamGeneration;
+    dashboardStream = new EventSource('/events?' + params.toString());
+    dashboardStream.addEventListener('fragment', event => {
+        if (generation !== streamGeneration) return;
+        applyServerHTML(event.data);
+    });
+    dashboardStream.addEventListener('error', event => {
+        if (event.data) console.error('dashboard stream error:', event.data);
+    });
+}
+function submitFilters(view = viewFromLocation()) {
+    const filename = document.getElementById('input-filename');
+    if (view !== 'session' && filename) filename.value = '';
+    if (view === 'session' && filename && !filename.value) view = 'dashboard';
+    const params = formParams();
+    pushDashboardUrl(view, params);
+    connectDashboardStream(view);
+}
+function setFilters(changes, opts = {}) {
+    const toggle = opts.toggle !== false;
+    let openingDimension = false;
+    Object.entries(changes).forEach(([key, val]) => {
+        const input = document.getElementById('input-' + key);
+        if (!input) return;
+        if (toggle && input.value === val) {
+            input.value = '';
+        } else {
+            input.value = val;
+            if (key !== 'filename' && val !== '') openingDimension = true;
+        }
+    });
+    if (openingDimension) {
+        const filename = document.getElementById('input-filename');
+        if (filename) filename.value = '';
+    }
+    submitFilters();
+}
+function openFilteredPage(view, changes = {}) {
+    const entries = Object.entries(changes).filter(([key, val]) => val !== '');
+    const allMatch = entries.length > 0 && entries.every(([key, val]) => {
+        const input = document.getElementById('input-' + key);
+        return input && input.value === val;
+    });
+    Object.entries(changes).forEach(([key, val]) => {
+        const input = document.getElementById('input-' + key);
+        if (!input) return;
+        if (allMatch) {
+            input.value = '';
+        } else {
+            input.value = val || '';
+        }
+    });
+    const filename = document.getElementById('input-filename');
+    if (filename) filename.value = '';
+    const params = formParams();
+    pushDashboardUrl(view, params);
+    connectDashboardStream(view);
+}
+function openDrill(changes = {}) {
+    openFilteredPage('drill', changes);
+}
+function openProfanity(changes = {}) {
+    openFilteredPage('profanity', changes);
+}
+function openModelToolRow(row) {
+    openDrill({ model: row.dataset.model || '', provider: row.dataset.provider || '', tool: row.dataset.tool || '' });
+}
+function setFilter(key, val) {
+    setFilters({ [key]: val });
+}
+function setTimeFilter(days) {
+    document.getElementById('input-days').value = days;
+    submitFilters();
+}
+function setSort(table, by) {
+    const tableInput = document.getElementById('input-sort-table');
+    const byInput = document.getElementById('input-sort-by');
+    const dirInput = document.getElementById('input-sort-dir');
+    if (tableInput.value === table && byInput.value === by) {
+        dirInput.value = dirInput.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        tableInput.value = table;
+        byInput.value = by;
+        dirInput.value = 'desc';
+    }
+    submitFilters();
+}
+function clearSort() {
+    document.getElementById('input-sort-table').value = '';
+    document.getElementById('input-sort-by').value = '';
+    document.getElementById('input-sort-dir').value = '';
+    submitFilters();
+}
+function toggleFilter(key) {
+    if (key === 'all') {
+        document.getElementById('input-harness').value = '';
+        document.getElementById('input-provider').value = '';
+        document.getElementById('input-model').value = '';
+        document.getElementById('input-project').value = '';
+        document.getElementById('input-tool').value = '';
+        document.getElementById('input-filename').value = '';
+    }
+    submitFilters();
+}
+function openSession(row) {
+    document.getElementById('input-filename').value = row.dataset.filename || '';
+    document.getElementById('input-harness').value = row.dataset.harness || '';
+    const params = formParams();
+    pushDashboardUrl('session', params);
+    connectDashboardStream('session');
+}
+function backToDashboard() {
+    document.getElementById('input-filename').value = '';
+    const params = formParams();
+    pushDashboardUrl('dashboard', params);
+    connectDashboardStream('dashboard');
+}
+function forceRefresh() {
+    const button = document.getElementById('refresh-button');
+    if (button) {
+        button.disabled = true;
+        button.textContent = 'Queued';
+    }
+    fetch('/refresh', { method: 'POST' }).catch(err => {
+        console.error('refresh request failed:', err);
+        if (button) {
+            button.disabled = false;
+            button.textContent = 'Refresh ETL';
+        }
+    });
+}
+function saveRefreshSettings() {
+    const enabled = document.getElementById('auto-refresh-enabled');
+    const minutes = document.getElementById('auto-refresh-minutes');
+    if (!enabled || !minutes) return;
+    const body = new URLSearchParams({
+        enabled: enabled.checked ? 'true' : 'false',
+        minutes: minutes.value || '15'
+    });
+    fetch('/refresh-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body
+    }).catch(err => console.error('refresh settings failed:', err));
+}
+function saveProfanitySettings(source) {
+    const enabled = source || document.getElementById('profanity-enabled') || document.getElementById('profanity-enabled-page');
+    const checked = enabled && enabled.checked;
+    document.querySelectorAll('#profanity-enabled, #profanity-enabled-page, #profanity-enabled-kpi').forEach(el => { el.checked = !!checked; });
+    const body = new URLSearchParams({ enabled: checked ? 'true' : 'false' });
+    fetch('/profanity-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body
+    }).catch(err => console.error('profanity settings failed:', err));
+}
+
+function uploadDictionary(form) {
+    const status = document.getElementById('dictionary-upload-status');
+    if (status) status.textContent = 'Uploading...';
+    const formData = new FormData(form);
+    fetch('/upload-dictionary', {
+        method: 'POST',
+        body: formData
+    }).then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+    }).then(data => {
+        if (data.status === 'ok') {
+            if (status) status.innerHTML = '<span class="text-good">Dictionary uploaded: ' + data.words + ' words (' + data.mode + ')</span>';
+            const info = document.getElementById('dictionary-status');
+            if (info) info.textContent = 'Loaded ' + data.words + ' words from ' + data.path + ' (' + data.mode + ')';
+            forceRefresh();
+        } else {
+            if (status) status.innerHTML = '<span class="text-bad">Upload failed</span>';
+        }
+    }).catch(err => {
+        if (status) status.innerHTML = '<span class="text-bad">Upload failed: ' + err.message + '</span>';
+        console.error('dictionary upload failed:', err);
+    });
+    return false;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const etlStatus = document.getElementById('etl-status');
+    const content = document.getElementById('dashboard-content');
+    if (etlStatus && content) {
+        content.classList.toggle('updating', etlStatus.dataset.state === 'running');
+    }
+    hydrateInteractive();
+    updateThemeToggle();
+    setTimeout(renderCharts, 250);
+    connectDashboardStream(viewFromLocation());
+});
+window.addEventListener('popstate', () => {
+    syncFormFromLocation();
+    connectDashboardStream(viewFromLocation());
+});
+window.addEventListener('resize', () => { clearTimeout(window._rt); window._rt = setTimeout(renderCharts, 200); });
+</script>
+</body>
+</html>

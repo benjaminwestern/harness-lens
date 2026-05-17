@@ -1,0 +1,126 @@
+{{define "profanity-content"}}
+<section class="section">
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:16px; border-bottom:1px solid var(--border); display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:start;">
+      <div>
+        <div class="section-title" style="margin-bottom:8px;">Profanity Analytics</div>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+          {{if .Harness}}<span class="badge badge-muted">{{.Harness}}</span>{{end}}
+          {{if .Provider}}<span class="badge">{{.Provider}}</span>{{end}}
+          {{if .Model}}<span class="badge badge-model">{{.Model}}</span>{{end}}
+          {{if .Project}}<span class="badge badge-muted">{{.Project}}</span>{{end}}
+          {{if .Tool}}<span class="badge badge-tool">{{.Tool}}</span>{{end}}
+          {{if not .Harness}}{{if not .Provider}}{{if not .Model}}{{if not .Project}}{{if not .Tool}}<span class="badge badge-muted">all activity</span>{{end}}{{end}}{{end}}{{end}}{{end}}
+        </div>
+        <h2 style="font-size:20px; margin:0 0 6px; letter-spacing:-0.01em;">Profanity by harness and model</h2>
+        <div class="text-secondary text-xs">Aggregated from user turns only. Raw user-message text is extracted transiently during ETL and dropped after aggregation.</div>
+      </div>
+      <label class="etl-control mono" title="When off, refresh clears profanity aggregates and skips transient user-message extraction."><input id="profanity-enabled-page" type="checkbox" {{if .Diagnostics.ProfanityCollectionEnabled}}checked{{end}} onchange="saveProfanitySettings(this)"> collect profanity</label>
+    </div>
+    <div style="padding:16px;">
+      <div class="mono text-secondary text-xs" style="display:flex; gap:16px; flex-wrap:wrap; align-items:center;">
+        <span class="text-bad font-bold">{{.ProfanitySummary.TotalSwears}} swears</span>
+        <span>{{.ProfanitySummary.SwearsPerUserTurnDisplay}} / user turn</span>
+        <span>{{.ProfanitySummary.SwearsPerSessionDisplay}} / session</span>
+        <span>{{.ProfanitySummary.SessionsWithSwearsPct}} sessions with swears</span>
+        <span>top: {{if .ProfanitySummary.TopGroup}}{{.ProfanitySummary.TopGroup}}{{else}}-{{end}}</span>
+      </div>
+      <div class="text-secondary text-xs" style="margin-top:10px;">
+        Dictionary: {{.ProfanityDictionary.Words}} words
+        {{if .ProfanityDictionary.CustomPath}}· custom: <span class="mono session-path">{{.ProfanityDictionary.CustomPath}}</span> ({{.ProfanityDictionary.Mode}}){{else}}· custom: off{{end}}
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="card" style="padding:16px;">
+    <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap; justify-content:space-between;">
+      <div>
+        <div style="font-weight:600; font-size:13px; margin-bottom:4px;">Custom Dictionary</div>
+        <div class="text-secondary text-xs" id="dictionary-status">
+          {{if .ProfanityDictionary.CustomPath}}
+          Loaded {{.ProfanityDictionary.Words}} words from <span class="mono session-path">{{.ProfanityDictionary.CustomPath}}</span> ({{.ProfanityDictionary.Mode}})
+          {{else}}
+          No custom dictionary loaded. Upload a CSV with columns: word, severity, group
+          {{end}}
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <a href="/dictionary-template" download class="filter-pill" style="font-size:12px; padding:4px 10px; text-decoration:none;">Download template</a>
+        <form style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;" onsubmit="return uploadDictionary(this)">
+          <input type="file" name="dictionary" accept=".csv,.json" required style="font-size:12px; max-width:200px;">
+          <select name="mode" style="font-size:12px; padding:4px 8px; border-radius:4px; border:1px solid var(--border); background:var(--panel); color:var(--text);">
+            <option value="extend">extend</option>
+            <option value="replace">replace</option>
+          </select>
+          <button type="submit" class="filter-pill" style="font-size:12px; padding:4px 10px;">Upload</button>
+        </form>
+      </div>
+    </div>
+    <div id="dictionary-upload-status" style="margin-top:8px; font-size:11px;"></div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-title">Profanity by Model and Harness</div>
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div class="table-wrap" style="max-height:460px; overflow-y:auto;">
+      <table>
+        <thead><tr><th>Harness</th><th>Model</th><th>Provider</th><th class="right">Swears</th><th class="right">Strong</th><th class="right">Moderate</th><th class="right">Mild</th><th class="right">Feel</th><th class="right">/ User Turn</th><th class="right">Sessions</th></tr></thead>
+        <tbody>
+        {{range .ProfanityModelHarnesses}}
+        <tr class="clickable" onclick="openProfanity({harness:'{{.Harness}}', model:'{{.Model}}', provider:'{{.Provider}}'})">
+          <td><span class="badge badge-muted">{{.Harness}}</span></td>
+          <td><span class="badge badge-model">{{.Model}}</span></td>
+          <td><span class="badge">{{.Provider}}</span></td>
+          <td class="right mono text-bad">{{.Count}}</td>
+          <td class="right mono text-bad">{{.StrongCount}}</td>
+          <td class="right mono">{{.ModerateCount}}</td>
+          <td class="right mono">{{.MildCount}}</td>
+          <td class="right mono">{{.FeelDisplay}} <span class="text-secondary">({{.FeelScore}})</span></td>
+          <td class="right mono">{{.SwearsPerUserTurnDisplay}}</td>
+          <td class="right mono">{{.Sessions}}</td>
+        </tr>
+        {{else}}<tr><td colspan="10" class="text-secondary">No model x harness profanity rows. Collection may be disabled or no swears were detected for the active filters.</td></tr>{{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="grid grid-3">
+    <div class="card" style="padding:0; overflow:hidden;">
+      <div style="padding:12px 16px; border-bottom:1px solid var(--border); font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-secondary);">By Harness</div>
+      <div class="table-wrap" style="max-height:300px; overflow-y:auto;">
+        <table><thead><tr><th>Harness</th><th class="right">Swears</th><th class="right">Sessions</th></tr></thead><tbody>
+        {{range .ProfanityHarnesses}}
+        <tr class="clickable" onclick="openProfanity({harness:'{{.Harness}}'})"><td><span class="badge badge-muted">{{.Harness}}</span></td><td class="right mono text-bad">{{.Count}}</td><td class="right mono">{{.Sessions}}</td></tr>
+        {{else}}<tr><td colspan="3" class="text-secondary">No swears detected.</td></tr>{{end}}
+        </tbody></table>
+      </div>
+    </div>
+    <div class="card" style="padding:0; overflow:hidden;">
+      <div style="padding:12px 16px; border-bottom:1px solid var(--border); font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-secondary);">By Model</div>
+      <div class="table-wrap" style="max-height:300px; overflow-y:auto;">
+        <table><thead><tr><th>Model</th><th>Provider</th><th class="right">Swears</th><th class="right">Sessions</th></tr></thead><tbody>
+        {{range .ProfanityModels}}
+        <tr class="clickable" onclick="openProfanity({model:'{{.Model}}', provider:'{{.Provider}}'})"><td><span class="badge badge-model">{{.Model}}</span></td><td><span class="badge">{{.Provider}}</span></td><td class="right mono text-bad">{{.Count}}</td><td class="right mono">{{.Sessions}}</td></tr>
+        {{else}}<tr><td colspan="4" class="text-secondary">No model-attributed swears detected.</td></tr>{{end}}
+        </tbody></table>
+      </div>
+    </div>
+    <div class="card" style="padding:0; overflow:hidden;">
+      <div style="padding:12px 16px; border-bottom:1px solid var(--border); font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-secondary);">Top Groups</div>
+      <div class="table-wrap" style="max-height:300px; overflow-y:auto;">
+        <table><thead><tr><th>Group</th><th>Severity</th><th class="right">Swears</th></tr></thead><tbody>
+        {{range .ProfanityGroups}}
+        <tr><td><span class="badge badge-err">{{.GroupName}}</span></td><td>{{.Severity}}</td><td class="right mono text-bad">{{.Count}}</td></tr>
+        {{else}}<tr><td colspan="3" class="text-secondary">No swear groups detected.</td></tr>{{end}}
+        </tbody></table>
+      </div>
+    </div>
+  </div>
+</section>
+{{end}}
