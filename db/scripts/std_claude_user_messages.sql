@@ -12,9 +12,23 @@ SELECT 'claude' as harness, filename,
   COALESCE(string_split(session_cwd, '/')[-1], string_split(filename, '/')[-2], 'claude') as project,
   session_cwd,
   epoch_ms(try_cast(timestamp AS TIMESTAMP)) as ts,
-  COALESCE(json_extract_string(message, '$.content'), CAST(json_extract(message, '$.content') AS VARCHAR)) as text
+  json_extract_string(block.unnest, '$.text') as text
+FROM claude_norm,
+  unnest(from_json(CAST(json_extract(message, '$.content') AS VARCHAR), '["JSON"]')) as block
+WHERE type = 'user'
+  AND NOT coalesce(isMeta, false)
+  AND json_extract(message, '$.content') IS NOT NULL
+  AND json_type(json_extract(message, '$.content')) = 'ARRAY'
+  AND json_extract_string(block.unnest, '$.type') = 'text'
+  AND json_extract_string(block.unnest, '$.text') IS NOT NULL
+UNION ALL
+SELECT 'claude' as harness, filename,
+  COALESCE(string_split(session_cwd, '/')[-1], string_split(filename, '/')[-2], 'claude') as project,
+  session_cwd,
+  epoch_ms(try_cast(timestamp AS TIMESTAMP)) as ts,
+  json_extract_string(message, '$.content') as text
 FROM claude_norm
 WHERE type = 'user'
   AND NOT coalesce(isMeta, false)
-  AND NOT (json_type(json_extract(message, '$.content')) = 'ARRAY' AND CAST(json_extract(message, '$.content') AS VARCHAR) LIKE '%"tool_result"%')
-  AND COALESCE(json_extract_string(message, '$.content'), CAST(json_extract(message, '$.content') AS VARCHAR)) IS NOT NULL;
+  AND json_extract_string(message, '$.content') IS NOT NULL
+  AND json_type(json_extract(message, '$.content')) != 'ARRAY';

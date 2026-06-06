@@ -1,10 +1,10 @@
 CREATE OR REPLACE VIEW std_opencode_tool_events AS
 SELECT 'opencode' as harness, CAST(p.session_id AS VARCHAR) as filename,
-  COALESCE(string_split(COALESCE(json_extract_string(m.data, '$.path.cwd'), s.directory), '/')[-1], 'opencode') as project,
+  COALESCE(string_split(COALESCE(json_extract_string(m.data, '$.path.cwd'), NULLIF(s.directory, '')), '/')[-1], 'opencode') as project,
   json_extract_string(m.data, '$.modelID') as raw_model,
   json_extract_string(m.data, '$.modelID') as model,
   COALESCE(json_extract_string(m.data, '$.providerID'), pm.provider, 'opencode') as provider,
-  COALESCE(json_extract_string(m.data, '$.path.cwd'), s.directory) as session_cwd,
+  COALESCE(json_extract_string(m.data, '$.path.cwd'), NULLIF(s.directory, '')) as session_cwd,
   CAST(p.time_created AS BIGINT) as ts,
   0.0 as cost,
   0 as in_tok,

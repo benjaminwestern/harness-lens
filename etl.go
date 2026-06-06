@@ -128,7 +128,9 @@ func createStandardEventViews(dbConn *sql.DB, home string, opencodeExists bool) 
 		}
 	}
 
-	if matches, _ := filepath.Glob(filepath.Join(home, ".gemini", "tmp", "*", "chats", "*.json")); len(matches) > 0 {
+	geminiJsonlMatches, _ := filepath.Glob(filepath.Join(home, ".gemini", "tmp", "*", "chats", "*.jsonl"))
+	geminiJsonMatches, _ := filepath.Glob(filepath.Join(home, ".gemini", "tmp", "*", "chats", "*.json"))
+	if len(geminiJsonlMatches) > 0 || len(geminiJsonMatches) > 0 {
 		if err := addView("std_gemini_message_events", "std gemini message events", "std_gemini_message_events.sql", data); err != nil {
 			return err
 		}
